@@ -1,4 +1,3 @@
-from pipenv.utils.environment import load_dot_env
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
