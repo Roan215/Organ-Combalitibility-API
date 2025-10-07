@@ -39,6 +39,15 @@ class PersonDetails(BaseModel):
     organ_size: OrganSize
     organ_status: OrganStatus
 
+class ReceiverInput(BaseModel):
+    name: str
+    age: int
+    gender: str
+    blood_type: str
+    hla_typing: str
+    infection_status: bool
+    organ_size: float  # only one organ’s size
+
 def get_db():
     db = SessionLocal()
     try:
@@ -64,14 +73,14 @@ async def add_person(data: PersonDetails,db: db_dependency):
     db.commit()
 
 
-@app.get("/availabillity/{organ}")
-async def availabeList(organ:str,db: db_dependency):
-    if not hasattr(models.OrganStatus,organ):
+@app.get("/availability/{organ}")
+async def availableList(organ: str, db: db_dependency):
+    if not hasattr(models.OrganStatus, organ):
         raise HTTPException(status_code=404, detail="Organ not found")
 
-    column_attr=getattr(models.OrganStatus,organ)
+    column_attr = getattr(models.OrganStatus, organ)
 
-    if not isinstance(column_attr.type,Boolean):
+    if not isinstance(column_attr.type, Boolean):
         raise HTTPException(status_code=404, detail="Organ not found")
 
     results = (
@@ -80,60 +89,75 @@ async def availabeList(organ:str,db: db_dependency):
         .filter(column_attr == True)
         .all()
     )
-    return results
+
+    donor_list = []
+    for person in results:
+        donor_list.append({
+            "id": person.id,
+            "name": person.name,
+            "age": person.age,
+            "gender": person.gender,
+            "blood_type": person.blood_type,
+            "hla_typing": person.hla_typing,
+            "infection_status": person.infection_status
+        })
+
+    return {
+        "organ": organ,
+        "total_donors": len(donor_list),
+        "donors": donor_list
+    }
 
 
-@app.post("/compatibility/{id}")
+
+@app.post("/compatibility/{id}/{organ}")
 async def compatibility(
     id: int,
-    person: PersonDetails,
-    organ: str = Query(..., description="Organ to check (e.g., kidney, liver, heart)"),
+    organ: str,
+    receiver: ReceiverInput,
     db: Session = Depends(get_db),
 ):
-    # Fetch donor with organ sizes and status
-    donor = (
-        db.query(models.Person)
-          .filter(models.Person.id == id)
-          .first()
-    )
-
+    donor = db.query(models.Person).filter(models.Person.id == id).first()
     if not donor:
         raise HTTPException(status_code=404, detail="Donor not found")
 
-    # 1. Donor must be infection free
+    # 1. Donor infection check
     if donor.infection_status:
         return {"compatible": False, "reason": "Donor has infection"}
 
-    # 2. Gender, blood type, HLA must match
-    if donor.gender != person.person.gender:
+    # 2. Match common attributes
+    if donor.gender != receiver.gender:
         return {"compatible": False, "reason": "Gender mismatch"}
-    if donor.blood_type != person.person.blood_type:
+    if donor.blood_type != receiver.blood_type:
         return {"compatible": False, "reason": "Blood type mismatch"}
-    if donor.hla_typing != person.person.hla_typing:
+    if donor.hla_typing != receiver.hla_typing:
         return {"compatible": False, "reason": "HLA typing mismatch"}
-
-    # 3. Age difference <= 10
-    if abs(donor.age - person.person.age) > 10:
+    if abs(donor.age - receiver.age) > 10:
         return {"compatible": False, "reason": "Age difference too large"}
 
-    # 4. Check requested organ availability
+    # 3. Organ availability check
     donor_status = donor.organ_status
     if not getattr(donor_status, organ, False):
         return {"compatible": False, "reason": f"Donor does not have {organ} available"}
 
-    # 5. Compare organ size
-    donor_size = donor.organ_size
-    person_size = person.organ_size
+    # 4. Compare organ size
+    organ_size_fields = {
+        "kidney": "kidney_volume",
+        "liver": "liver_volume",
+        "heart": "heart_volume",
+        "lungs": "single_lung_volume",
+        "pancreas": "pancreas_size",
+        "intestine": "intestine_volume",
+    }
 
-    donor_value = getattr(donor_size, f"{organ}_volume", None)
-    person_value = getattr(person.organ_size, f"{organ}_volume", None)
-
-    if donor_value is None or person_value is None:
+    field_name = organ_size_fields.get(organ)
+    if not field_name:
         raise HTTPException(status_code=400, detail=f"Invalid organ '{organ}'")
 
-    # Allow exact match (or could add tolerance)
-    if donor_value != person_value:
+    donor_size_value = getattr(donor.organ_size, field_name)
+    receiver_size_value = receiver.organ_size
+
+    if abs(donor_size_value - receiver_size_value) > 0.1 * receiver_size_value:
         return {"compatible": False, "reason": f"{organ.capitalize()} size mismatch"}
 
-    # ✅ All checks passed
     return {"compatible": True, "reason": f"Donor is compatible for {organ}"}
