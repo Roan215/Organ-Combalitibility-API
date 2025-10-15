@@ -26,7 +26,7 @@ class OrganSize(BaseModel):
     intestine_volume: float
 
 class OrganStatus(BaseModel):
-    corenea: bool
+    cornea: bool
     kidney: bool
     liver: bool
     heart: bool

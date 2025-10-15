@@ -32,7 +32,7 @@ class OrganSize(Base):
 class OrganStatus(Base):
     __tablename__ = 'organ_status'
     id = Column(Integer, primary_key=True,index=True)
-    corenea=Column(Boolean,default=True,index=True)
+    cornea=Column(Boolean, default=True, index=True)
     kidney=Column(Boolean,default=True,index=True)
     liver=Column(Boolean,default=True,index=True)
     heart=Column(Boolean,default=True,index=True)
