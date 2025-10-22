@@ -153,13 +153,10 @@ async def compatibility(
     }
 
     field_name = organ_size_fields.get(organ)
-    if not field_name:
-        raise HTTPException(status_code=400, detail=f"Invalid organ '{organ}'")
-
-    donor_size_value = getattr(donor.organ_size, field_name)
-    receiver_size_value = receiver.organ_size
-
-    if abs(donor_size_value - receiver_size_value) > 0.1 * receiver_size_value:
-        return {"compatible": False, "reason": f"{organ.capitalize()} size mismatch"}
+    if field_name:
+        donor_size_value = getattr(donor.organ_size, field_name)
+        receiver_size_value = receiver.organ_size
+        if abs(donor_size_value - receiver_size_value) > 0.1 * receiver_size_value:
+            return {"compatible": False, "reason": f"{organ.capitalize()} size mismatch"}
 
     return {"compatible": True, "reason": f"Donor is compatible for {organ}"}
