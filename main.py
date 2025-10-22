@@ -121,6 +121,11 @@ async def compatibility(
     if not donor:
         raise HTTPException(status_code=404, detail="Donor not found")
 
+    # 3. Organ availability check
+    donor_status = donor.organ_status
+    if not getattr(donor_status, organ, False):
+        return {"compatible": False, "reason": f"Donor does not have {organ} available"}
+
     # 1. Donor infection check
     if donor.infection_status:
         return {"compatible": False, "reason": "Donor has infection"}
@@ -135,10 +140,7 @@ async def compatibility(
     if abs(donor.age - receiver.age) > 10:
         return {"compatible": False, "reason": "Age difference too large"}
 
-    # 3. Organ availability check
-    donor_status = donor.organ_status
-    if not getattr(donor_status, organ, False):
-        return {"compatible": False, "reason": f"Donor does not have {organ} available"}
+
 
     # 4. Compare organ size
     organ_size_fields = {
